@@ -8,10 +8,10 @@ The public PWA is deliberately unconfigured: it contains no family data, Airtabl
 
 Choose the document for the question you have:
 
-| Document | Audience | Purpose |
-| --- | --- | --- |
-| [Technical guide](docs/TECHNICAL_GUIDE.md) | Future AI instances and maintainers | The authoritative implementation handoff: architecture, data model, API behaviour, deployment, tests, and safe-change rules. |
-| [Product case study](docs/CASE_STUDY.md) | Hiring managers and product collaborators | The original problem, constraints, scope decisions, options considered, trade-offs, and AI-assisted delivery approach. |
+| Document | Use it for |
+| --- | --- |
+| [Technical guide](docs/TECHNICAL_GUIDE.md) | Implementing or maintaining the project: architecture, data model, API behaviour, deployment, tests, and safe-change rules. |
+| [Product brief](docs/PRODUCT_BRIEF.md) | Understanding the original problem, constraints, scope decisions, options considered, trade-offs, and delivery approach. |
 
 ## What it does
 

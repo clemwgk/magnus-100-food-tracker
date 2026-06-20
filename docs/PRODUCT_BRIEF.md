@@ -1,4 +1,4 @@
-# Product case study
+# Product brief
 
 ## The brief
 

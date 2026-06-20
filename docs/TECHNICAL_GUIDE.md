@@ -1,6 +1,6 @@
 # Technical guide
 
-This is the authoritative implementation guide for future AI instances and maintainers. It describes the current system and the rules that changes must preserve. The [product case study](CASE_STUDY.md) explains why these choices were made; it does not override this document.
+This is the authoritative implementation guide for future AI instances and maintainers. It describes the current system and the rules that changes must preserve. The [product brief](PRODUCT_BRIEF.md) explains why these choices were made; it does not override this document.
 
 When implementation, tests, and this guide conflict, inspect the current source and tests first, then update this guide as part of the change.
 
@@ -140,7 +140,7 @@ The test refuses to write until `verifyTestTarget` confirms that the proxy base 
 
 Before publishing a change:
 
-1. Preserve the product invariants above unless the product case study is deliberately revised too.
+1. Preserve the product invariants above unless the product brief is deliberately revised too.
 2. Update implementation, tests, and this technical guide together.
 3. Run the applicable checks and always run `npm.cmd run secret:scan`.
 4. Inspect the diff for secrets, endpoint values, or family data.
