@@ -4,6 +4,14 @@ A small, installable web app for recording the first time a child tries each ing
 
 The public PWA is intentionally unconfigured. It contains no family data, Airtable credentials, shared passcode, or pre-filled service endpoint. A family connects its own private Google Apps Script deployment on each device.
 
+## Case study at a glance
+
+This repository is an AI-assisted product build, not a coding exercise for its own sake. The goal was a genuinely usable household tool with shared data, low daily friction, no recurring hosting cost, and no credentials exposed in a public static site.
+
+The core product judgement was to keep the domain deliberately narrow: record an ingredient and its earliest exposure date. That removed the need for a meal timeline, user accounts, nutrition analysis, recipe inference, or a more complicated database model. The resulting implementation is small enough to understand end to end, but has the safeguards that matter for the use case: server-side de-duplication, date correction, automated tests, and a disposable live-test gate.
+
+Read the [Product case study](docs/CASE_STUDY.md) for the brief, constraints, options considered, decisions, limitations, and the AI-assisted delivery approach. Read [Architecture](docs/ARCHITECTURE.md) for the implementation details.
+
 ## What it does
 
 - Accepts a quick ingredient list such as `blended prawns, carrot, and corn`.
