@@ -31,6 +31,9 @@ test('parses ingredients, saves only missing ones, and exposes labelled controls
   await expect(page.locator('#exposure-date')).toBeFocused()
   await expect(page.locator('#exposure-date')).toHaveAttribute('type', 'date')
   await expect(page.locator('#ingredients')).toBeVisible(); await expect(page.getByRole('button', { name: 'Save ingredients' })).toBeVisible()
+  await page.getByRole('button', { name: 'How it works' }).click()
+  await expect(page.getByText('Quick guide', { exact: true })).toBeVisible()
+  await expect(page.getByText('Fix a typo', { exact: true })).toBeVisible()
   const box = await page.locator('.app-shell').boundingBox(); expect(box?.x).toBeGreaterThanOrEqual(0)
 })
 

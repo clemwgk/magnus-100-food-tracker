@@ -23,6 +23,7 @@ export function App() {
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
   const [showSettings, setShowSettings] = useState(!endpoint)
+  const [showGuide, setShowGuide] = useState(false)
   const [query, setQuery] = useState('')
   const api = useMemo(() => window.__MAGNUS_TEST_API__ || createApi(endpoint), [endpoint])
   const parsed = useMemo(() => normalizeCandidates(draft.text), [draft.text])
@@ -81,6 +82,7 @@ export function App() {
     <section className="card list" aria-labelledby="list-heading"><div className="section-heading"><h2 id="list-heading">Tracked ingredients</h2><button className="text-button" type="button" onClick={refresh}>Refresh</button></div><label className="sr-only" htmlFor="search">Search ingredients</label><input id="search" type="search" placeholder="Search ingredients" value={query} onChange={(event) => setQuery(event.target.value)} />
       <ul>{filtered.map((ingredient) => <IngredientRow key={ingredient.key} ingredient={ingredient} />)}{!filtered.length && <li className="empty">Your saved ingredients will appear here.</li>}</ul>
     </section>
+    <section className="guide"><button className="text-button" type="button" onClick={() => setShowGuide(!showGuide)} aria-expanded={showGuide}>How it works</button>{showGuide && <div className="guide-panel"><h2>Quick guide</h2><ol><li>Enter one ingredient list, separated by commas, semicolons, new lines, or “and”.</li><li>For a mixed dish, list its ingredients: <em>chicken, rice, carrot</em>—not “chicken porridge”.</li><li>The app removes simple prep words and plurals, then saves only ingredients not already tracked.</li><li>Enter an older date again to correct a first-exposure date earlier. It will never move a date later.</li></ol><h3>Fix a typo</h3><p>Open the <strong>Ingredients</strong> table in Airtable. For an uncomplicated typo, edit both <strong>Name</strong> and its matching lowercase <strong>Key</strong>. If the corrected key already exists, keep the correct row and its earliest date, then remove the typo row.</p></div>}</section>
     <section className="settings"><button className="text-button" type="button" onClick={() => setShowSettings(!showSettings)} aria-expanded={showSettings}>Settings & diagnostics</button>{showSettings && <div className="settings-panel"><label htmlFor="endpoint">Apps Script /exec URL</label><input id="endpoint" type="url" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://script.google.com/macros/s/…/exec" autoCapitalize="none" /><label htmlFor="passcode">Family passcode</label><input id="passcode" type="password" value={passcode} onChange={(event) => setPasscode(event.target.value)} autoComplete="current-password" /><p>Saved only for this session. Reset it by clearing this field.</p><button className="secondary" type="button" onClick={saveSettings}>Save endpoint</button></div>}</section>
   </main>
 }
