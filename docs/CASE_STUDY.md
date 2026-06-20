@@ -61,7 +61,7 @@ sequenceDiagram
 
 The client preview is a convenience, not the authority. The proxy repeats normalisation and holds a short script lock before checking Airtable again. That protects against two parents saving the same new ingredient at nearly the same time and makes first-date correction predictable: an earlier date is accepted; a later date never overwrites the existing one.
 
-For the concrete system boundaries, API contract, data model, local storage behaviour, and secret handling, see [Architecture](ARCHITECTURE.md).
+For the concrete system boundaries, API contract, data model, local storage behaviour, and secret handling, see the [technical guide](TECHNICAL_GUIDE.md).
 
 ## AI-assisted delivery approach
 
