@@ -14,8 +14,8 @@ The success measure was not a sophisticated nutrition product. It was a reliable
 | Daily entry must be quick on iPhone. | Build one focused mobile screen, with plain-text entry and an installable PWA shell. |
 | The data must be correctable without engineering help. | Use Airtable as an editable source of truth. |
 | There should be no recurring backend cost or new operational burden. | Use GitHub Pages for the static client and Google Apps Script as the small server-side layer. |
-| The repository is public. | Keep every credential and deployed endpoint out of the client, build output, and documentation. |
-| A first-exposure date has lasting value. | Favor conservative matching and easy correction over clever inference. |
+| A browser cannot safely hold Airtable credentials. | Keep the Airtable token in Google Apps Script, rather than calling Airtable directly from the PWA. |
+| A food may be logged after the meal. | Retain the earliest known date for an ingredient and allow an earlier correction without later entries overwriting it. |
 
 ## Scope: what was intentionally built, and what was not
 
@@ -36,7 +36,7 @@ These are not omissions by accident. Each would add data model, privacy, support
 
 | Decision | Why it fits | Trade-off accepted |
 | --- | --- | --- |
-| One `Ingredients` table, not meals or aliases. | The goal is first exposure, so a single canonical record is the smallest useful model. | No meal history and no automatic synonym matching. |
+| One `Ingredients` table, not meals or aliases. | The product needs one record per ingredient and its earliest date. Meals, aliases, and linked records would add data-model, editing, and interface complexity without helping that core task. | No meal history and no automatic synonym matching. |
 | Airtable as source of truth. | It is easy for a non-engineer to inspect and correct directly. | The schema is manually managed and must retain exact field names. |
 | Google Apps Script between the PWA and Airtable. | It keeps the Airtable token off the public static site without adding a separate server platform. | Script deployment is manual and the platform is intentionally simple. |
 | GitHub Pages PWA for the interface. | It is free, installable, and well suited to an iPhone-first single screen. | A static site cannot carry protected configuration; each device enters its own proxy URL. |
@@ -60,6 +60,19 @@ sequenceDiagram
 ```
 
 The client preview is a convenience, not the authority. The proxy repeats normalisation and holds a short script lock before checking Airtable again. That protects against two parents saving the same new ingredient at nearly the same time and makes first-date correction predictable: an earlier date is accepted; a later date never overwrites the existing one.
+
+### Why the Apps Script layer exists
+
+The PWA cannot safely call Airtable directly. A direct browser request would require the Airtable personal-access token to be sent to every device, where anyone able to inspect the app or its network traffic could recover and use it. Putting the token in a frontend build variable would only hide it cosmetically; it would still be delivered to the browser.
+
+Apps Script is therefore not an extra database or a generic middleman. It provides four functions that the static PWA cannot:
+
+1. It keeps the Airtable token and base ID in server-side Script Properties.
+2. It verifies the shared passcode before returning family data or changing records.
+3. It performs the authoritative normalisation, duplicate check, and locked re-read before a write.
+4. It returns only the small, safe response the PWA needs, rather than exposing Airtable directly.
+
+This preserves the convenience of a static, low-cost PWA while keeping credentials and write integrity on the server-side boundary.
 
 For the concrete system boundaries, API contract, data model, local storage behaviour, and secret handling, see the [technical guide](TECHNICAL_GUIDE.md).
 
