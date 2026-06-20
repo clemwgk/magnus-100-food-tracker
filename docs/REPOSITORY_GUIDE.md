@@ -11,18 +11,43 @@ Magnus 100 Foods is a small, mobile-first PWA for two parents to track a child's
 - Do not store raw meal text, recipes, parent identities, portions, allergy data, or a meal-event history.
 - Do not add Meals, Aliases, linked-record tables, or synonym matching without an explicit product decision.
 
-## Live architecture
+## Architecture at a glance
 
-```text
-Public GitHub Pages PWA
-        -> Apps Script /exec proxy
-        -> Airtable Ingredients table
+Think of the app as three small pieces. The public web app is the screen parents use; it cannot hold a secret. Google Apps Script is the locked middle layer. Airtable is the editable family database.
+
+```mermaid
+flowchart LR
+  P["Parent's iPhone PWA\nGitHub Pages"] -->|"HTTPS: passcode, date, ingredients"| S["Google Apps Script\n/exec proxy"]
+  S -->|"Airtable API: server-side token"| A["Airtable\nIngredients table"]
+  A -->|"ingredient list and save result"| S
+  S -->|"safe JSON response"| P
 ```
 
-- The public app URL is `https://clemwgk.github.io/magnus-100-food-tracker/`.
-- GitHub Pages serves only static frontend files. It must never receive an Airtable token, base ID, passcode, passcode hash, salt, or food history.
-- The Apps Script proxy holds secrets in Script Properties and is the only component that calls Airtable.
-- The `/exec` endpoint is public-reachable by design, but `snapshot` and `saveIngredients` require the shared family passcode. Only `health` is unauthenticated and it must remain non-sensitive.
+| Piece | What it does | What it stores | What it must never contain |
+| --- | --- | --- | --- |
+| GitHub Pages PWA | Shows the intake screen, parses the typed list for preview, and displays results. | Endpoint setting on that device; a convenience copy of the latest snapshot; an unsaved offline draft. | Airtable token, base ID, passcode hash/salt, or a built-in endpoint value. |
+| Apps Script proxy | Checks the passcode, normalizes again on the server, prevents duplicates, and calls Airtable. | Airtable token/base ID and passcode hash/salt in **Script Properties** only. | Plain passcode, raw pasted meal text, or a durable meal history. |
+| Airtable | Is the family’s editable source of ingredient records. | One `Ingredients` table. | Tokens, passcodes, or a raw meal diary. |
+
+### What happens when a parent saves
+
+1. A parent enters a simple ingredient list, for example `blended prawns, carrot, and corn`.
+2. The PWA previews `prawn`, `carrot`, and `corn`; the preview is helpful but not authoritative.
+3. The PWA sends only the candidate ingredients and selected date to the Apps Script `/exec` URL over HTTPS. It never sends a raw meal record to Airtable.
+4. Apps Script checks the passcode, normalizes the ingredients again, takes a short lock to avoid two parents creating duplicates, then reads/writes Airtable.
+5. Apps Script replies with what was new, already known, or corrected to an earlier first-exposure date. The PWA refreshes its list from that response.
+
+### What a parent needs to manage
+
+| If you want to… | Use… | Why |
+| --- | --- | --- |
+| Add foods or see progress | The PWA on an iPhone | Fast daily intake. |
+| Correct a name/key typo or inspect all rows | Airtable | It is the editable source of truth. |
+| Change a token, base ID, or shared passcode | Apps Script Script Properties | Secrets stay off the public site and out of Git. |
+| Change app screens or behavior | This GitHub repository | A push to `main` rebuilds the public PWA. |
+| Change Airtable-proxy logic | `apps-script/` plus the live Apps Script project | The files must be copied/deployed manually after a change. |
+
+The public app URL is `https://clemwgk.github.io/magnus-100-food-tracker/`. It is intentionally reachable without a login, but it does not ship a configured endpoint or any family data. The `/exec` endpoint is also public-reachable by design; `snapshot` and `saveIngredients` require the shared family passcode, and only `health` is unauthenticated and non-sensitive.
 
 ## Source-of-truth order
 
