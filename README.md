@@ -2,6 +2,10 @@
 
 An installable, mobile-first PWA for tracking the first date Magnus tried each distinct ingredient. It uses a GitHub Pages frontend and a Google Apps Script proxy; Airtable credentials remain only in Script Properties.
 
+## Working on this repository
+
+Read [docs/REPOSITORY_GUIDE.md](docs/REPOSITORY_GUIDE.md) before making changes. It is the source of truth for safe repository operation, the public deployment, typo corrections, secrets, and release workflow. Then use [docs/llm-build-handoff.md](docs/llm-build-handoff.md) for the full product and implementation contract.
+
 ## Local development
 
 Use `npm.cmd` in PowerShell on this machine because the PowerShell execution policy blocks `npm.ps1`:
