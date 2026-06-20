@@ -2,7 +2,7 @@
 
 An installable, mobile-first web app for recording the first time a child tries each ingredient. Parents type a short list, choose the date, and keep one shared record moving toward 100 foods.
 
-The public PWA is deliberately unconfigured: it contains no family data, Airtable credentials, shared passcode, or pre-filled service endpoint.
+It is a PWA (progressive web app) — a website you can install to the iPhone home screen so it behaves like an app. The public version is deliberately unconfigured: it contains no family data, Airtable credentials, shared passcode, or pre-filled service endpoint.
 
 ## Documentation
 
@@ -26,11 +26,15 @@ It is intentionally not a meal diary, recipe parser, nutrition app, or allergy t
 
 ## Architecture in one line
 
+In plain terms: the phone app can't safely hold the secret key to the data, so a
+free server-side go-between holds the key and talks to the database on the app's
+behalf. Precisely:
+
 ```text
 React PWA on GitHub Pages -> Google Apps Script proxy -> Airtable Ingredients table
 ```
 
-The browser never talks directly to Airtable. The proxy owns the Airtable token, checks the shared passcode, and applies the server-side de-duplication and date rules.
+The browser never talks directly to Airtable. The proxy owns the Airtable token, checks the shared passcode, and applies the server-side de-duplication and date rules. The [product brief](docs/PRODUCT_BRIEF.md#why-a-phone-app-cant-talk-to-the-database-directly) explains why a go-between is necessary rather than calling Airtable directly.
 
 ## Try it or run it
 

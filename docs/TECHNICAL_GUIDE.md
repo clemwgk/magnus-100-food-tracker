@@ -15,10 +15,15 @@ When implementation, tests, and this guide conflict, inspect the current source 
 
 ## Architecture
 
+The Apps Script proxy is the server-side go-between that holds the Airtable token,
+because a free static site cannot store a secret (the [product brief](PRODUCT_BRIEF.md#why-a-phone-app-cant-talk-to-the-database-directly)
+explains why direct browser-to-Airtable access is not an option). The browser never
+sees the token.
+
 ```mermaid
 flowchart LR
-  P["React PWA\nGitHub Pages"] -->|"POST text/plain JSON"| S["Google Apps Script\n/exec proxy"]
-  S -->|"Airtable REST API\nserver-side token"| A["Airtable\nIngredients"]
+  P["React PWA<br/>GitHub Pages"] -->|"POST text/plain JSON"| S["Google Apps Script<br/>/exec proxy"]
+  S -->|"Airtable REST API<br/>server-side token"| A["Airtable<br/>Ingredients"]
   A --> S --> P
 ```
 
@@ -75,11 +80,67 @@ Browser requests must remain simple: JSON body with `Content-Type: text/plain;ch
 
 On save, the proxy validates input, normalizes ingredient candidates, takes an Apps Script lock, reads the current ingredient records, creates only missing keys, and updates a stored date only when the submitted date is earlier. This server-side re-read is the protection against simultaneous saves from two devices.
 
+### Response shapes
+
+Every successful response is JSON. Error responses are `{ ok: false, code, message }`
+(see [Error codes](#error-codes)). Successful shapes by action:
+
+| Action | Successful response |
+| --- | --- |
+| `GET?action=health` | `{ ok: true, service: "magnus-food-tracker", configured: { airtableToken, airtableBaseId, familyPasscode } }` — each `configured` flag is a boolean only, never the value. |
+| `snapshot` | `{ summary: { totalIngredients, goal: 100 }, ingredients: [{ id, name, key, firstExposureDate, notes }] }` |
+| `saveIngredients` | `{ summary: { totalIngredients, goal: 100 }, created: [...], alreadyKnown: [...], dateCorrected: [...], allIngredientKeys: [string] }` — each list holds ingredient objects; `allIngredientKeys` is the normalized keys from this submission. |
+| `verifyTestTarget` | `{ ok: true, verified: true }` |
+
+Ingredient objects mirror the Airtable mapping in `apps-script/airtable.gs`: `id`, `name`, `key`, `firstExposureDate` (`YYYY-MM-DD`), `notes`.
+
+### Input limits
+
+`saveIngredients` rejects input that violates any of these (defined in `apps-script/Code.gs` and `apps-script/normalization.gs`):
+
+- `exposureDate` must match `YYYY-MM-DD` and be a real calendar date.
+- `ingredients` must be an array of 1-20 strings, each ≤200 characters.
+- After normalization, each candidate key must be non-empty and ≤80 characters; otherwise that candidate is dropped, and a submission that normalizes to nothing is rejected.
+
+### Error codes
+
+All client-facing errors return `{ ok: false, code, message }` with one of these codes. Messages are intentionally generic; never widen them to include Airtable details or stack traces.
+
+| Code | Meaning / trigger | Source |
+| --- | --- | --- |
+| `INVALID_ACTION` | Missing/unknown action, or an unparseable JSON body. | `Code.gs` |
+| `INVALID_PASSCODE` | Passcode did not match. | `auth.gs` |
+| `PASSCODE_THROTTLED` | Too many failed passcode attempts (see below). | `auth.gs` |
+| `CONFIGURATION_ERROR` | Required Script Properties are missing, or `verifyTestTarget` base mismatch. | `auth.gs`, `airtable.gs`, `Code.gs` |
+| `INVALID_DATE` | `exposureDate` is missing or not a valid `YYYY-MM-DD` date. | `Code.gs` |
+| `INVALID_INGREDIENTS` | Ingredient list fails the input limits, or normalizes to nothing. | `Code.gs` |
+| `CONFLICT_RETRY` | Could not acquire the script lock within 5s; another save is in progress. | `Code.gs` |
+| `AIRTABLE_ERROR` | Airtable was unreachable, returned a non-2xx status, or sent an unreadable body; also the fallback for any unhandled server error. | `airtable.gs`, `Code.gs` |
+
+### Passcode protection
+
+The passcode is never stored in plaintext. `auth.gs` keeps a salt and a SHA-256 hash of `salt + ":" + passcode` in Script Properties, and compares using a constant-time check. Failed attempts are counted per-passcode-hash in the script cache: after `PASSCODE_MAX_FAILURES_` (5) failures the proxy returns `PASSCODE_THROTTLED` for `PASSCODE_THROTTLE_SECONDS_` (300s) before allowing further attempts.
+
 ## Normalization and device behaviour
 
 Input is split on commas, semicolons, new lines, or standalone `and`. A limited list of leading preparation words is removed, punctuation and whitespace are normalized, and a conservative plural rule is applied. The system does not infer ingredients from a dish or merge synonyms; a duplicate is safer than an incorrect historical merge.
 
 The PWA service worker caches the app shell only, never API responses. Browser storage contains the endpoint setting, an unsent draft, and a last successful snapshot. The endpoint must be entered once in each browser or separately installed PWA context; the shared passcode is memory-only for the current session. Failed saves leave the typed draft available to retry.
+
+## Extending the proxy: adding a new action
+
+Follow the existing conventions in `apps-script/` when adding behaviour:
+
+1. **Register the action string** in the allow-list inside `routePost_` (`Code.gs`) and dispatch to a handler. Unknown actions must throw `INVALID_ACTION`.
+2. **Rely on central passcode enforcement.** `routePost_` calls `requirePasscode_` before dispatch, so every non-`health` action is already gated; do not re-implement auth in the handler. `health` is the only public action and lives in `doGet`.
+3. **Name private helpers with a trailing underscore** (`saveIngredients_`, `airtableRequest_`, `jsonResponse_`). Only `doGet`/`doPost` are public entry points.
+4. **Signal client errors by throwing `ApiError_(code, message)`** with a generic message. `doPost` converts anything else into a safe `AIRTABLE_ERROR`, so never let raw errors, Airtable bodies, or stack traces reach the client.
+5. **Return plain objects**; `doPost` serializes them through `jsonResponse_`. Do not build responses by hand.
+6. **For any write, take the script lock** (`LockService.getScriptLock`, `tryLock(5000)` → `CONFLICT_RETRY`) and re-read Airtable inside the lock, mirroring `saveIngredients_`. This is what keeps concurrent device saves safe.
+7. **Reach Airtable only through `airtableRequest_`** so token handling, base addressing, pagination, and error mapping stay in one place. Batch writes are chunked at 10 records (`createIngredients_`/`updateIngredients_`).
+8. **Keep the product invariants** above: no new tables or fields, no token exposure, and update the [browser and proxy contract](#browser-and-proxy-contract), [response shapes](#response-shapes), and [error codes](#error-codes) tables in this guide as part of the change.
+
+After editing `apps-script/`, manually copy the code into the Apps Script project and publish a new Web-app version (see below).
 
 ## Secrets and deployment configuration
 
