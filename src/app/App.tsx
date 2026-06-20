@@ -1,0 +1,98 @@
+import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { createApi } from '../lib/api'
+import { localToday, yesterday } from '../lib/dateOnly'
+import { normalizeCandidates } from '../lib/normalize'
+import { ApiError, type Ingredient, type SaveResult, type Snapshot } from '../lib/types'
+import './app.css'
+
+const ENDPOINT_KEY = 'magnus.endpoint'
+const SNAPSHOT_KEY = 'magnus.snapshot'
+const DRAFT_KEY = 'magnus.draft'
+const EMPTY: Snapshot = { summary: { totalIngredients: 0, goal: 100 }, ingredients: [] }
+
+function readJson<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) || '') as T } catch { return fallback }
+}
+
+export function App() {
+  const [endpoint, setEndpoint] = useState(() => localStorage.getItem(ENDPOINT_KEY) || '')
+  const [passcode, setPasscode] = useState('')
+  const [snapshot, setSnapshot] = useState(() => readJson(SNAPSHOT_KEY, EMPTY))
+  const [draft, setDraft] = useState(() => readJson(DRAFT_KEY, { text: '', date: localToday() }))
+  const [result, setResult] = useState<SaveResult | null>(null)
+  const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [showSettings, setShowSettings] = useState(!endpoint)
+  const [query, setQuery] = useState('')
+  const api = useMemo(() => window.__MAGNUS_TEST_API__ || createApi(endpoint), [endpoint])
+  const parsed = useMemo(() => normalizeCandidates(draft.text), [draft.text])
+  const known = useMemo(() => new Map(snapshot.ingredients.map((ingredient) => [ingredient.key, ingredient])), [snapshot.ingredients])
+  const filtered = useMemo(() => snapshot.ingredients.filter((ingredient) => ingredient.name.toLowerCase().includes(query.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name)), [query, snapshot.ingredients])
+
+  useEffect(() => { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) }, [draft])
+  useEffect(() => { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot)) }, [snapshot])
+  useEffect(() => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => undefined)
+  }, [])
+
+  async function refresh() {
+    setMessage('')
+    try {
+      const next = await api.snapshot(passcode)
+      setSnapshot(next)
+      setMessage('Ingredient list refreshed.')
+    } catch (error) { setMessage(userMessage(error)) }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault(); setResult(null); setMessage('')
+    if (!passcode) { setMessage('Enter the family passcode to save.'); return }
+    if (!parsed.length) { setMessage('Add at least one ingredient first.'); return }
+    setSaving(true)
+    try {
+      const saved = await api.saveIngredients(passcode, draft.date, parsed.map((item) => item.key))
+      setResult(saved)
+      const next = await api.snapshot(passcode)
+      setSnapshot(next)
+      setDraft({ text: '', date: localToday() })
+      setMessage('Saved. The list is up to date.')
+    } catch (error) { setMessage(userMessage(error)) } finally { setSaving(false) }
+  }
+
+  function saveSettings() {
+    localStorage.setItem(ENDPOINT_KEY, endpoint.trim())
+    setEndpoint(endpoint.trim())
+    setShowSettings(false)
+    setMessage('Endpoint saved on this device.')
+  }
+
+  return <main className="app-shell">
+    <header><p className="eyebrow">Magnus’s food adventure</p><h1>{snapshot.summary.totalIngredients} <span>of {snapshot.summary.goal}</span></h1><div className="progress" aria-label={`${snapshot.summary.totalIngredients} of ${snapshot.summary.goal} ingredients`}><span style={{ width: `${Math.min(100, snapshot.summary.totalIngredients)}%` }} /></div></header>
+    <section className="card intake" aria-labelledby="entry-heading"><div className="section-heading"><h2 id="entry-heading">What did Magnus try?</h2><button className="text-button" type="button" onClick={() => setDraft({ ...draft, date: yesterday() })}>Yesterday</button></div>
+      <form onSubmit={submit}>
+        <label htmlFor="exposure-date">Date offered</label><input id="exposure-date" type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} required />
+        <label htmlFor="ingredients">Foods</label><textarea id="ingredients" value={draft.text} onChange={(event) => setDraft({ ...draft, text: event.target.value })} placeholder="blended prawns, carrot, and corn" rows={4} />
+        <Preview parsed={parsed} known={known} />
+        <button className="primary" type="submit" disabled={saving || !parsed.length}>{saving ? 'Saving…' : 'Save ingredients'}</button>
+      </form>
+    </section>
+    {message && <p className="notice" role="status">{message}</p>}
+    {result && <Result result={result} />}
+    <section className="card list" aria-labelledby="list-heading"><div className="section-heading"><h2 id="list-heading">Tracked ingredients</h2><button className="text-button" type="button" onClick={refresh}>Refresh</button></div><label className="sr-only" htmlFor="search">Search ingredients</label><input id="search" type="search" placeholder="Search ingredients" value={query} onChange={(event) => setQuery(event.target.value)} />
+      <ul>{filtered.map((ingredient) => <IngredientRow key={ingredient.key} ingredient={ingredient} />)}{!filtered.length && <li className="empty">Your saved ingredients will appear here.</li>}</ul>
+    </section>
+    <section className="settings"><button className="text-button" type="button" onClick={() => setShowSettings(!showSettings)} aria-expanded={showSettings}>Settings & diagnostics</button>{showSettings && <div className="settings-panel"><label htmlFor="endpoint">Apps Script /exec URL</label><input id="endpoint" type="url" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://script.google.com/macros/s/…/exec" autoCapitalize="none" /><label htmlFor="passcode">Family passcode</label><input id="passcode" type="password" value={passcode} onChange={(event) => setPasscode(event.target.value)} autoComplete="current-password" /><p>Saved only for this session. Reset it by clearing this field.</p><button className="secondary" type="button" onClick={saveSettings}>Save endpoint</button></div>}</section>
+  </main>
+}
+
+function Preview({ parsed, known }: { parsed: { key: string; name: string }[]; known: Map<string, Ingredient> }) {
+  if (!parsed.length) return <p className="hint">Separate foods with commas, semicolons, new lines, or “and”.</p>
+  return <div className="preview" aria-live="polite"><p>Preview</p><ul>{parsed.map((item) => <li key={item.key}><span>{item.name}</span><small className={known.has(item.key) ? 'known' : 'new'}>{known.has(item.key) ? 'Already tracked' : 'New'}</small></li>)}</ul></div>
+}
+
+function Result({ result }: { result: SaveResult }) {
+  return <section className="card result" aria-live="polite"><h2>Save complete</h2>{result.created.length > 0 && <p><strong>New:</strong> {result.created.map((item) => item.name).join(', ')}</p>}{result.alreadyKnown.length > 0 && <p><strong>Already tracked:</strong> {result.alreadyKnown.map((item) => item.name).join(', ')}</p>}{result.dateCorrected.length > 0 && <p><strong>Date corrected:</strong> {result.dateCorrected.map((item) => item.name).join(', ')} now has its earliest date.</p>}</section>
+}
+
+function IngredientRow({ ingredient }: { ingredient: Ingredient }) { return <li><span>{ingredient.name}</span><time dateTime={ingredient.firstExposureDate}>{ingredient.firstExposureDate}</time></li> }
+function userMessage(error: unknown): string { return error instanceof ApiError ? error.message : 'Something went wrong. Your typed foods are still here; please retry.' }
