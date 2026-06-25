@@ -125,7 +125,7 @@ The passcode is never stored in plaintext. `auth.gs` keeps a salt and a SHA-256 
 
 Input is split on commas, semicolons, new lines, or standalone `and`. A limited list of leading preparation words is removed, punctuation and whitespace are normalized, and a conservative plural rule is applied. The system does not infer ingredients from a dish or merge synonyms; a duplicate is safer than an incorrect historical merge.
 
-The PWA service worker caches the app shell only, never API responses. Browser storage contains the endpoint setting, an unsent draft, and a last successful snapshot. The endpoint must be entered once in each browser or separately installed PWA context; the shared passcode is memory-only for the current session. Failed saves leave the typed draft available to retry.
+The PWA service worker caches the app shell only, never API responses. Browser storage contains the endpoint setting, the shared passcode for that device, unsent draft text, the preferred ingredient-list sort order, and a last successful snapshot. The endpoint and passcode must be entered once in each browser or separately installed PWA context. The Settings panel includes a **Forget passcode** control for shared or retired devices. Failed saves leave the typed draft available to retry; draft dates reset to local today when the app reopens to avoid stale Date offered defaults.
 
 ## Extending the proxy: adding a new action
 
@@ -162,7 +162,7 @@ Never put actual values, a deployed proxy URL, or family ingredient records in s
 3. In a standalone Apps Script project, copy the files in `apps-script/` and replace the manifest with `apps-script/appsscript.json`.
 4. Add the four Script Properties directly in the Apps Script interface. Generate the passcode verifier values locally with `npm.cmd run make:passcode-hash`; the helper hides input and writes no passcode to disk.
 5. Deploy the project as a Web app, execute as the owner, and choose an access setting that permits the PWA to reach it. Use the production `/exec` URL, never `/dev`.
-6. In the PWA Settings panel, save the `/exec` URL on each device and enter the family passcode for the current session.
+6. In the PWA Settings panel, save the `/exec` URL and enter the family passcode on each device or separately installed PWA context. Use **Forget passcode** if that device should stop remembering the passcode.
 
 After changing `apps-script/`, manually copy the modified code into Apps Script and publish a new Web-app version. The GitHub repository cannot deploy Apps Script for you.
 
